@@ -1,26 +1,18 @@
-use std::error::Error;
+use crate::errors::Error;
 use std::process::{Command, Output, Stdio};
-use std::string::FromUtf8Error;
 
-#[derive(Debug)]
-struct ParsingError {}
-
-impl std::fmt::Display for ParsingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Error parsing command")
-    }
-}
-
-impl Error for ParsingError {}
-
-impl ParsingError {
-    fn new() -> Box<ParsingError> {
-        Box::new(ParsingError {})
-    }
+enum Status {
+    Running,
+    Stopped,
+    Problem,
+    Disabled,
+    Unknown,
 }
 
 pub struct Program<'a> {
     name: String,
+    status: Status,
+    status_target: Status,
     cmd_start: &'a str,
     cmd_status: &'a str,
     expected_start: Option<&'a str>,
@@ -31,6 +23,8 @@ impl<'a> Program<'a> {
     pub fn new(name: String) -> Program<'a> {
         return Program {
             name: name,
+            status: Status::Unknown,
+            status_target: Status::Unknown,
             cmd_start: "ls -la",
             cmd_status: "echo hello",
             expected_start: None,
@@ -38,21 +32,25 @@ impl<'a> Program<'a> {
         };
     }
 
-    pub fn check(&self) -> Result<bool, Box<dyn Error>> {
-        let is_ok = self.compare_to_expected(self.cmd_status, self.expected_status)?;
-        return Ok(is_ok);
+    pub fn check(&self) {
+        let status = match self.compare_to_expected(self.cmd_status, self.expected_status) {
+            Ok(s) => match s {
+                true => Status::Running,
+                false => Status::Stopped,
+            },
+            Err(_) => Status::Problem,
+        };
+
+        // TODO: Handle status cases
+        todo!();
     }
 
-    pub fn start(&self) -> Result<bool, Box<dyn Error>> {
+    pub fn start(&self) -> Result<bool, Error> {
         let is_ok = self.compare_to_expected(self.cmd_start, self.expected_start)?;
         return Ok(is_ok);
     }
 
-    fn compare_to_expected(
-        &self,
-        cmd: &str,
-        expected: Option<&str>,
-    ) -> Result<bool, Box<dyn Error>> {
+    fn compare_to_expected(&self, cmd: &str, expected: Option<&str>) -> Result<bool, Error> {
         let output = exec_command(cmd)?;
 
         match expected {
@@ -74,10 +72,10 @@ impl<'a> Program<'a> {
     }
 }
 
-fn exec_command(cmd_string: &str) -> Result<Output, Box<dyn Error>> {
+fn exec_command(cmd_string: &str) -> Result<Output, Error> {
     let cmds: Vec<&str> = cmd_string.split_whitespace().collect();
     if cmds.len() == 0 {
-        return Err(ParsingError::new());
+        return Err(Error::ParsingError);
     }
     let mut cmd = &mut Command::new(cmds[0]);
     for i in 1..cmds.len() - 1 {
