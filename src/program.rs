@@ -14,9 +14,11 @@ pub struct Program<'a> {
     status: Status,
     status_target: Status,
     cmd_start: &'a str,
-    cmd_status: &'a str,
     expected_start: Option<&'a str>,
+    cmd_status: &'a str,
     expected_status: Option<&'a str>,
+    cmd_stop: &'a str,
+    expected_stop: Option<&'a str>,
 }
 
 impl<'a> Program<'a> {
@@ -26,9 +28,11 @@ impl<'a> Program<'a> {
             status: Status::Unknown,
             status_target: Status::Unknown,
             cmd_start: "ls -la",
-            cmd_status: "echo hello",
             expected_start: None,
+            cmd_status: "echo hello",
             expected_status: Some("hello"),
+            cmd_stop: "ls -la",
+            expected_stop: Some("hello"),
         };
     }
 
@@ -41,13 +45,28 @@ impl<'a> Program<'a> {
             Err(_) => Status::Problem,
         };
 
-        // TODO: Handle status cases
-        todo!();
+        match status {
+            Status::Problem => self.start(),
+            Status::Disabled => match self.status_target {
+                Status::Running | Status::Stopped => self.start(),
+                _ => (),
+            },
+            Status::Running => match self.status_target {
+                Status::Disabled => self.stop(),
+                _ => (),
+            },
+            _ => (),
+        }
     }
 
-    pub fn start(&self) -> Result<bool, Error> {
-        let is_ok = self.compare_to_expected(self.cmd_start, self.expected_start)?;
-        return Ok(is_ok);
+    pub fn start(&self) {
+        let _ = self.compare_to_expected(self.cmd_start, self.expected_start);
+        // TODO: Check Status without recursion
+    }
+
+    pub fn stop(&self) {
+        let _ = self.compare_to_expected(self.cmd_stop, self.expected_stop);
+        // TODO: Check Status without recursion
     }
 
     fn compare_to_expected(&self, cmd: &str, expected: Option<&str>) -> Result<bool, Error> {
