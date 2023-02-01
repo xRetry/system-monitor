@@ -1,29 +1,37 @@
 use crate::program::Program;
+use std::fs::File;
+use std::io::BufReader;
 
-pub struct ProgramManager<'a> {
-    programs: Vec<Program<'a>>,
+pub struct ProgramManager {
+    programs: Vec<Program>,
 }
 
-impl<'a> ProgramManager<'a> {
-    pub fn new() -> ProgramManager<'a> {
+impl ProgramManager {
+    pub fn new() -> ProgramManager {
         return ProgramManager {
             programs: Vec::<Program>::new(),
         };
     }
 
-    pub fn add_program(&mut self, prog: Program<'a>) {
-        self.programs.push(prog);
-    }
+    pub fn init(&mut self) {
+        let file = File::open("config/programs.json").expect("Unable to open file");
+        let reader = BufReader::new(file);
 
-    pub fn start_programs(&mut self) {
-        for program in self.programs.iter() {
-            program.start();
+        let programs: Vec<Program> =
+            serde_json::from_reader(reader).expect("Unable to deserialize json");
+
+        for prog in programs {
+            self.add_program(prog);
         }
     }
 
+    pub fn add_program(&mut self, prog: Program) {
+        self.programs.push(prog);
+    }
+
     pub fn check_programs(&mut self) {
-        for program in self.programs.iter() {
-            program.check();
+        for program in self.programs.iter_mut() {
+            program.check(true);
         }
     }
 }

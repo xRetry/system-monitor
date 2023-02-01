@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Prog 1",
+    "cmd_start": "ls -la",
+    "cmd_status": "echo hello",
+    "expected_status": "hello"
+  },
+  {
+    "name": "Prog 2",
+    "cmd_start": "ls -la",
+    "cmd_status": "echo hello",
+    "expected_status": "hello"
+  }
+]

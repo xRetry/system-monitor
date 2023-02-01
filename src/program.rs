@@ -1,43 +1,49 @@
 use crate::errors::Error;
+use serde::Deserialize;
 use std::process::{Command, Output, Stdio};
 
+#[derive(Clone, Copy, Deserialize, Debug)]
 enum Status {
     Running,
     Stopped,
     Problem,
-    Disabled,
-    Unknown,
 }
 
-pub struct Program<'a> {
+enum Action {
+    Start,
+    Stop,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Program {
     name: String,
-    status: Status,
-    status_target: Status,
-    cmd_start: &'a str,
-    expected_start: Option<&'a str>,
-    cmd_status: &'a str,
-    expected_status: Option<&'a str>,
-    cmd_stop: &'a str,
-    expected_stop: Option<&'a str>,
+    status: Option<Status>,
+    status_target: Option<Status>,
+    cmd_start: Option<String>,
+    expected_start: Option<String>,
+    cmd_status: String,
+    expected_status: Option<String>,
+    cmd_stop: Option<String>,
+    expected_stop: Option<String>,
 }
 
-impl<'a> Program<'a> {
-    pub fn new(name: String) -> Program<'a> {
+impl Program {
+    pub fn new(name: String) -> Program {
         return Program {
             name: name,
-            status: Status::Unknown,
-            status_target: Status::Unknown,
-            cmd_start: "ls -la",
+            status: None,
+            status_target: None,
+            cmd_start: Some("ls -la".to_owned()),
             expected_start: None,
-            cmd_status: "echo hello",
-            expected_status: Some("hello"),
-            cmd_stop: "ls -la",
-            expected_stop: Some("hello"),
+            cmd_status: "echo hello".to_owned(),
+            expected_status: Some("hello".to_owned()),
+            cmd_stop: Some("ls -la".to_owned()),
+            expected_stop: Some("hello".to_owned()),
         };
     }
 
-    pub fn check(&self) {
-        let status = match self.compare_to_expected(self.cmd_status, self.expected_status) {
+    pub fn check(&mut self, act_on_result: bool) {
+        let status = match self.exec_and_compare(&self.cmd_status, &self.expected_status) {
             Ok(s) => match s {
                 true => Status::Running,
                 false => Status::Stopped,
@@ -45,37 +51,62 @@ impl<'a> Program<'a> {
             Err(_) => Status::Problem,
         };
 
-        match status {
-            Status::Problem => self.start(),
-            Status::Disabled => match self.status_target {
-                Status::Running | Status::Stopped => self.start(),
-                _ => (),
+        self.status = Some(status);
+
+        if !act_on_result {
+            return;
+        }
+
+        let mut next_action = None;
+        match self.status_target {
+            None => (),
+            Some(stat_tar) => match status {
+                Status::Problem => next_action = Some(Action::Start),
+                Status::Stopped => match stat_tar {
+                    Status::Running => next_action = Some(Action::Start),
+                    _ => (),
+                },
+                Status::Running => match stat_tar {
+                    Status::Stopped => next_action = Some(Action::Stop),
+                    _ => (),
+                },
             },
-            Status::Running => match self.status_target {
-                Status::Disabled => self.stop(),
-                _ => (),
-            },
-            _ => (),
+        }
+
+        match next_action {
+            None => (),
+            Some(Action::Start) => self.start(),
+            Some(Action::Stop) => self.stop(),
         }
     }
 
-    pub fn start(&self) {
-        let _ = self.compare_to_expected(self.cmd_start, self.expected_start);
-        // TODO: Check Status without recursion
+    pub fn start(&mut self) {
+        match &self.cmd_start {
+            None => (),
+            Some(cmd) => {
+                let _ = self.exec_and_compare(&cmd, &self.expected_start);
+                self.check(false);
+            }
+        }
     }
 
-    pub fn stop(&self) {
-        let _ = self.compare_to_expected(self.cmd_stop, self.expected_stop);
-        // TODO: Check Status without recursion
+    pub fn stop(&mut self) {
+        match &self.cmd_stop {
+            None => (),
+            Some(cmd) => {
+                let _ = self.exec_and_compare(&cmd, &self.expected_stop);
+                self.check(false);
+            }
+        }
     }
 
-    fn compare_to_expected(&self, cmd: &str, expected: Option<&str>) -> Result<bool, Error> {
+    fn exec_and_compare(&self, cmd: &String, expected: &Option<String>) -> Result<bool, Error> {
         let output = exec_command(cmd)?;
 
         match expected {
             Some(exp) => {
                 let out_str = String::from_utf8(output.stdout)?;
-                if out_str == exp {
+                if out_str == *exp {
                     return Ok(true);
                 }
                 return Ok(false);
@@ -91,7 +122,7 @@ impl<'a> Program<'a> {
     }
 }
 
-fn exec_command(cmd_string: &str) -> Result<Output, Error> {
+fn exec_command(cmd_string: &String) -> Result<Output, Error> {
     let cmds: Vec<&str> = cmd_string.split_whitespace().collect();
     if cmds.len() == 0 {
         return Err(Error::ParsingError);
