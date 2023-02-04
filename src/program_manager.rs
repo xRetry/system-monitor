@@ -1,6 +1,7 @@
 use crate::program::Program;
 use std::fs::File;
 use std::io::BufReader;
+use std::thread;
 
 pub struct ProgramManager {
     programs: Vec<Program>,
@@ -13,7 +14,7 @@ impl ProgramManager {
         };
     }
 
-    pub fn init(&mut self) {
+    pub fn start(&mut self) {
         let file = File::open("config/programs.json").expect("Unable to open file");
         let reader = BufReader::new(file);
 
@@ -22,6 +23,16 @@ impl ProgramManager {
 
         for prog in programs {
             self.add_program(prog);
+        }
+
+        self.run();
+    }
+
+    fn run(&mut self) {
+        loop {
+            self.check_programs();
+            break;
+            thread::sleep(std::time::Duration::from_secs(60 * 5));
         }
     }
 
