@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
-use sysmon::sysmon_client::SysMonClient;
+use sysmon::{sys_mon_client::SysMonClient, Empty};
+use tonic::Request;
 
 pub mod sysmon {
     tonic::include_proto!("sysmon");
@@ -26,8 +27,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match &cli.command {
         Commands::Status => {
             println!("Status called");
-            let response = client.check_status().await?;
-            println!("{}", response.into_inner().error_message)
+            let response = client.check_status(Request::new(Empty{})).await?
+                .into_inner();
+
+            println!("{}", response.error_message);
+            println!("{}", response.running_programs);
         }
         Commands::Program => println!("Program called"),
     }

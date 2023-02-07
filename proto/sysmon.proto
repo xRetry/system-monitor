@@ -2,11 +2,13 @@ syntax = "proto3";
 package sysmon;
 
 service SysMon {
-    rpc CheckStatus () return (StatusResponse)
+    rpc CheckStatus (Empty) returns (StatusResponse);
 } 
 
 message StatusResponse {
     string error_message = 1;
     uint32 uptime_sec = 2;
-    uint32 running_progams = 3;
+    uint32 running_programs = 3;
 }
+
+message Empty {}
